@@ -1,8 +1,0 @@
-{
-  "name": "ai-pulse-cost-tracker",
-  "private": true,
-  "scripts": {
-    "build": "cd frontend && npm install && npm run build",
-    "dev": "cd backend && node src/server.js"
-  }
-}

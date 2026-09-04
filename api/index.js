@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-
-const { initDatabase } = require('../backend/config/database');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { initDatabase, getDb, saveDatabase } = require('../backend/config/database');
 const { initializeDatabase } = require('../backend/src/models/schema');
+const { get, run } = require('../backend/src/utils/dbHelper');
 const authRoutes = require('../backend/src/routes/auth');
 const dashboardRoutes = require('../backend/src/routes/dashboard');
 const apiLogsRoutes = require('../backend/src/routes/apiLogs');
@@ -17,14 +18,38 @@ const exportRoutes = require('../backend/src/routes/export');
 const preferencesRoutes = require('../backend/src/routes/preferences');
 
 const app = express();
-
 let dbReady = false;
+
+const seedDefaultUser = async () => {
+  try {
+    const existing = get('SELECT id FROM users WHERE username = ?', ['sneha']);
+    if (!existing) {
+      const hashedPassword = await bcrypt.hash('Secure123', 10);
+      const result = run('INSERT INTO users (username, password, name) VALUES (?, ?, ?)', ['sneha', hashedPassword, 'Sneha']);
+      const userId = result.lastInsertRowid;
+      run('INSERT INTO teams (name, budget_limit, owner_id) VALUES (?, ?, ?)', ["Sneha's Team", 2500, userId]);
+      const teamRow = get('SELECT id FROM teams WHERE owner_id = ?', [userId]);
+      if (teamRow) {
+        run('INSERT INTO team_members (team_id, user_id, role, invited_by) VALUES (?, ?, ?, ?)', [teamRow.id, userId, 'owner', userId]);
+      }
+      saveDatabase();
+    }
+  } catch (err) {
+    console.error('Seed error:', err);
+  }
+};
 
 const ensureDb = async () => {
   if (!dbReady) {
-    await initDatabase();
-    initializeDatabase();
-    dbReady = true;
+    try {
+      await initDatabase();
+      initializeDatabase();
+      await seedDefaultUser();
+      dbReady = true;
+    } catch (err) {
+      console.error('DB init error:', err);
+      throw err;
+    }
   }
 };
 
@@ -33,6 +58,7 @@ app.use(cors({
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:5174',
+    'https://ai-pulse-cost-tracker-2ewe.vercel.app',
     'https://ai-pulse-cost-tracker-296u-git-main-sneha-sharma-06s-projects.vercel.app'
   ],
   credentials: true
@@ -40,8 +66,13 @@ app.use(cors({
 app.use(express.json());
 
 app.use(async (req, res, next) => {
-  await ensureDb();
-  next();
+  try {
+    await ensureDb();
+    next();
+  } catch (err) {
+    console.error('Middleware error:', err);
+    res.status(500).json({ error: 'Database initialization failed' });
+  }
 });
 
 app.use('/api/auth', authRoutes);

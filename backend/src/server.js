@@ -25,7 +25,12 @@ const startServer = async () => {
   initializeDatabase();
 
   app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'https://ai-pulse-cost-tracker-296u-git-main-sneha-sharma-06s-projects.vercel.app'
+    ],
     credentials: true
   }));
   app.use(express.json());
